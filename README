@@ -1,0 +1,32 @@
+                                XFilter
+
+XFilter is an interactive filter for X11.
+It's basically dmenu, but with some features.
+
+XFilter is based on xprompt and share much of the code.
+But xprompt grew too much and got a complex interface.
+Xfilter is my attempt to simplify it.
+
+Namely, the following are features of xfilter that are not in dmenu:
+
+• Text selection (both via mouse or via Shift+Arrow).
+• Mouse support.
+• History.
+• File name completion (with `-f` option).
+• Items on the dropdown list can have descriptions attached to them
+  (just separate the item from its description with a tab).
+• Support for input methods with on-the-spot pre-editing.
+• Undo/redo (by default bound to Ctrl-Z and Ctrl-Shift-Z).
+• Copy/paste both via mouse and keybindings.
+• Xfilter does not set the override-redirect flag.
+
+XFilter does not set the override-redirect flag.  This means that
+XFilter is a regular window managed by the window manager; consequently,
+XFilter does not manage itself, and it has no knowledge of monitors,
+gravity or window border (all of that should be set by the window
+manager).
+
+Options are:
+• -f:           List filenames.
+• -h histfile:  Use histfile for history.
+• -p:           Password mode.
