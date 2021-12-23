@@ -151,6 +151,7 @@ struct Item {
 	struct Item *prev, *next;           /* previous and next matched items */
 	char *text;                         /* content of the completion item */
 	char *description;                  /* description of the completion item */
+	char *output;                       /* text to be output */
 };
 
 /* undo list entry */
@@ -217,6 +218,8 @@ static Atom atoms[AtomLast];
 /* flags */
 static int fflag = 0;   /* whether to enable filename completion */
 static int pflag = 0;   /* whether to enable password mode */
+static int dflag = 0;   /* whether to accept descriptions */
+static int oflag = 0;   /* whether to accept hidden output */
 
 /* comparison function */
 static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
@@ -228,7 +231,7 @@ static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "usage: xfilter [-fp] [-h file] [file...]\n");
+	(void)fprintf(stderr, "usage: xfilter [-dfop] [-h file] [file...]\n");
 	exit(1);
 }
 
@@ -400,13 +403,14 @@ initcursor(void)
 
 /* allocate a completion item */
 static struct Item *
-allocitem(const char *text, const char *description)
+allocitem(const char *text, const char *description, const char *output)
 {
 	struct Item *item;
 
 	item = emalloc(sizeof *item);
 	item->text = estrdup(text);
 	item->description = description ? estrdup(description) : NULL;
+	item->output = output ? estrdup(output) : NULL;
 	item->prevmatch = item->nextmatch = NULL;
 	item->prev = item->next = NULL;
 
@@ -1322,9 +1326,9 @@ getfilelist(struct Prompt *prompt)
 				continue;
 			if (*prompt->text != '\0') {
 				snprintf(path, sizeof(path), "%s/%s", prompt->text, entry->d_name);
-				item = allocitem(path, NULL);
+				item = allocitem(path, NULL, NULL);
 			} else {
-				item = allocitem(entry->d_name, NULL);
+				item = allocitem(entry->d_name, NULL, NULL);
 			}
 			if (prompt->fhead == NULL)
 				prompt->fhead = item;
@@ -1379,6 +1383,8 @@ cleanitem(struct Item *root)
 		tmp = item;
 		item = item->next;
 		free(tmp->text);
+		free(tmp->description);
+		free(tmp->output);
 		free(tmp);
 	}
 }
@@ -1582,6 +1588,17 @@ redo(struct Prompt *prompt)
 	}
 }
 
+/* print typed string */
+static void
+print(struct Prompt *prompt)
+{
+	if (prompt->selitem != NULL && prompt->selitem->output != NULL && strcmp(prompt->text, prompt->selitem->text) == 0) {
+		puts(prompt->selitem->output);
+	} else {
+		puts(prompt->text);
+	}
+}
+
 /* handle key press */
 static enum Press_ret
 keypress(struct Prompt *prompt, XKeyEvent *ev)
@@ -1626,7 +1643,7 @@ keypress(struct Prompt *prompt, XKeyEvent *ev)
 	case CTRLENTER:
 		if (prompt->matchlist)
 			insertselitem(prompt);
-		puts(prompt->text);
+		print(prompt);
 		return Enter;
 	case CTRLPREV:
 		/* FALLTHROUGH */
@@ -1841,7 +1858,7 @@ buttonpress(struct Prompt *prompt, XButtonEvent *ev)
 				return Nop;
 			}
 			insertselitem(prompt);
-			puts(prompt->text);
+			print(prompt);
 			return Enter;
 		}
 		return Nop;
@@ -2022,7 +2039,7 @@ readstdin(struct Prompt *prompt)
 {
 	struct Item *item;
 	char buf[INPUTSIZ];
-	char *text, *description;
+	char *text, *description, *output;
 
 	while (fgets(buf, sizeof buf, stdin) != NULL) {
 		/* discard empty lines */
@@ -2030,14 +2047,22 @@ readstdin(struct Prompt *prompt)
 			continue;
 
 		/* get the item text */
-		text = strtok(buf, "\t\n");
-		description = strtok(NULL, "\n");
+		description = NULL;
+		output = NULL;
+		if (dflag || oflag)
+			text = strtok(buf, "\t\n");
+		else
+			text = buf;
+		if (dflag)
+			description = strtok(NULL, "\t\n");
+		if (oflag)
+			output = strtok(NULL, "\n");
 
 		/* discard empty text entries */
 		if (!text || *text == '\0')
 			continue;
 
-		item = allocitem(text, description);
+		item = allocitem(text, description, output);
 
 		if (prompt->head == NULL)
 			prompt->head = item;
@@ -2134,13 +2159,19 @@ main(int argc, char *argv[])
 	char *histfile;
 
 	histfile = NULL;
-	while ((ch = getopt(argc, argv, "fh:p")) != -1) {
+	while ((ch = getopt(argc, argv, "dfh:op")) != -1) {
 		switch (ch) {
+		case 'd':
+			dflag = 1;
+			break;
 		case 'f':
 			fflag = 1;
 			break;
 		case 'h':
 			histfile = optarg;
+			break;
+		case 'o':
+			oflag = 1;
 			break;
 		case 'p':
 			pflag = 1;

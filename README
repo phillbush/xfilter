@@ -13,8 +13,7 @@ Namely, the following are features of xfilter that are not in dmenu:
 • Mouse support.
 • History.
 • File name completion (with `-f` option).
-• Items on the dropdown list can have descriptions attached to them
-  (just separate the item from its description with a tab).
+• Items can have descriptions
 • Support for input methods with on-the-spot pre-editing.
 • Undo/redo (by default bound to Ctrl-Z and Ctrl-Shift-Z).
 • Copy/paste both via mouse and keybindings.
@@ -30,3 +29,5 @@ Options are:
 • -f:           List filenames.
 • -h histfile:  Use histfile for history.
 • -p:           Password mode.
+• -d:           Enable description.
+• -o:           Enable hidden output.
