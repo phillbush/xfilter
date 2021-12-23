@@ -14,6 +14,7 @@ Namely, the following are features of xfilter that are not in dmenu:
 • History.
 • File name completion (with `-f` option).
 • Items can have descriptions
+• Items can be grouped
 • Support for input methods with on-the-spot pre-editing.
 • Undo/redo (by default bound to Ctrl-Z and Ctrl-Shift-Z).
 • Copy/paste both via mouse and keybindings.
@@ -25,9 +26,22 @@ XFilter does not manage itself, and it has no knowledge of monitors,
 gravity or window border (all of that should be set by the window
 manager).
 
+The input is a TSV (tab separated values).  The first value is what will
+appear on the list to be matched; the second value is a description that
+will also appear on the list but cannot be matched; the third value is a
+string that will be output if the item is selected.   Each value but the
+first one is optional.
+
+If the -g flag is active, lines read from stdin must be grouped in line
+blocks delimited by blank lines.  Each group must begin with a line
+whose only content is the name of the group.  The remaining lines of
+each group are displayed for the user to select.  When the user selects
+an item from a group, this item is printed to the stdout prefixed with
+the name of the group it came from.
+
 Options are:
 • -f:           List filenames.
+• -g:           Group items.
 • -h histfile:  Use histfile for history.
+• -i:           Case insensitive matching.
 • -p:           Password mode.
-• -d:           Enable description.
-• -o:           Enable hidden output.

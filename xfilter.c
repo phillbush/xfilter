@@ -25,9 +25,10 @@
 #define CLASS        "XFilter"
 #define TITLE        "xfilter"
 #define INPUTSIZ     1024
-#define DEFWIDTH     600    /* default width */
-#define DEFHEIGHT    20     /* default height for each text line */
-#define DOUBLECLICK  250    /* time in miliseconds of a double click */
+#define DEFWIDTH     600        /* default width */
+#define DEFHEIGHT    20         /* default height for each text line */
+#define DOUBLECLICK  250        /* time in miliseconds of a double click */
+#define GROUPWIDTH   150        /* width of space for group name */
 
 #define LEN(x) (sizeof (x) / sizeof (x[0]))
 #define MAX(x,y) ((x)>(y)?(x):(y))
@@ -147,11 +148,12 @@ struct IC {
 
 /* completion items */
 struct Item {
-	struct Item *prevmatch, *nextmatch; /* previous and next items */
-	struct Item *prev, *next;           /* previous and next matched items */
-	char *text;                         /* content of the completion item */
-	char *description;                  /* description of the completion item */
-	char *output;                       /* text to be output */
+	struct Group *group;                    /* item group */
+	struct Item *prevmatch, *nextmatch;     /* previous and next items */
+	struct Item *prev, *next;               /* previous and next matched items */
+	char *text;                             /* content of the completion item */
+	char *description;                      /* description of the completion item */
+	char *output;                           /* text to be output */
 };
 
 /* undo list entry */
@@ -180,6 +182,7 @@ struct Prompt {
 	struct Undo *undocurr;          /* current undo entry */
 
 	/* items */
+	struct Group *groups;           /* list of item groups */
 	struct Item *head, *tail;       /* list of items */
 	struct Item *fhead, *ftail;     /* list of file completion items */
 	struct Item *firstmatch;        /* first item that matches input */
@@ -201,6 +204,12 @@ struct Prompt {
 	Window win;                     /* xprompt window */
 };
 
+/* entry for list of group names */
+struct Group {
+	struct Group *next;
+	char *name;
+};
+
 /* X stuff */
 static Display *dpy;
 static int screen;
@@ -217,9 +226,8 @@ static Atom atoms[AtomLast];
 
 /* flags */
 static int fflag = 0;   /* whether to enable filename completion */
+static int gflag = 0;   /* whether to group read lines */
 static int pflag = 0;   /* whether to enable password mode */
-static int dflag = 0;   /* whether to accept descriptions */
-static int oflag = 0;   /* whether to accept hidden output */
 
 /* comparison function */
 static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
@@ -231,7 +239,7 @@ static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "usage: xfilter [-dfop] [-h file] [file...]\n");
+	(void)fprintf(stderr, "usage: xfilter [-fgip] [-h file] [file...]\n");
 	exit(1);
 }
 
@@ -401,20 +409,33 @@ initcursor(void)
 	cursor = XCreateFontCursor(dpy, XC_xterm);
 }
 
-/* allocate a completion item */
+/* allocate item */
 static struct Item *
-allocitem(const char *text, const char *description, const char *output)
+allocitem(const char *text, const char *description, const char *output, struct Group *group)
 {
 	struct Item *item;
 
-	item = emalloc(sizeof *item);
+	item = emalloc(sizeof(*item));
 	item->text = estrdup(text);
 	item->description = description ? estrdup(description) : NULL;
 	item->output = output ? estrdup(output) : NULL;
+	item->group = group;
 	item->prevmatch = item->nextmatch = NULL;
 	item->prev = item->next = NULL;
 
 	return item;
+}
+
+/* allocate group */
+static struct Group *
+allocgroup(struct Group *prev, const char *name)
+{
+	struct Group *group;
+
+	group = emalloc(sizeof(*group));
+	group->next = prev;
+	group->name = estrdup(name);
+	return group;
 }
 
 /* get next utf8 char from s return its codepoint and set next_ret to pointer to end of character */
@@ -617,34 +638,44 @@ drawinput(struct Prompt *prompt, int copy)
 
 /* draw nth item in the item array */
 static void
-drawitem(struct Prompt *prompt, size_t n, int copy)
+drawitems(struct Prompt *prompt)
 {
+	struct Group *group;
 	XftColor *color;
-	int textwidth = 0;
+	size_t i;
 	int x, y;
 
-	color = (prompt->itemarray[n] == prompt->selitem) ? dc.selected
-	      : (prompt->itemarray[n] == prompt->hoveritem) ? dc.hover
-	      : dc.normal;
-	y = (n + 1) * prompt->h + prompt->separator;
-	x = dc.pad;
+	group = NULL;
+	for (i = 0; i < prompt->nitems; i++) {
+		color = (prompt->itemarray[i] == prompt->selitem) ? dc.selected
+	      	      : (prompt->itemarray[i] == prompt->hoveritem) ? dc.hover
+	      	      : dc.normal;
+		y = (i + 1) * prompt->h + prompt->separator;
 
-	/* draw background */
-	XSetForeground(dpy, dc.gc, color[ColorBG].pixel);
-	XFillRectangle(dpy, prompt->pixmap, dc.gc, 0, y, prompt->w, prompt->h);
+		/* draw background */
+		XSetForeground(dpy, dc.gc, color[ColorBG].pixel);
+		XFillRectangle(dpy, prompt->pixmap, dc.gc, 0, y, prompt->w, prompt->h);
 
-	/* draw item text */
-	textwidth = drawtext(prompt->draw, &color[ColorFG], x, y, prompt->h, prompt->itemarray[n]->text, 0);
-	textwidth = x + textwidth + dc.pad;
+		/* draw item text */
+		x = dc.pad;
+		if (gflag) {
+			if (group != prompt->itemarray[i]->group) {
+				group = prompt->itemarray[i]->group;
+				if (group) {
+					drawtext(prompt->draw, &color[ColorCM], x, y, prompt->h, group->name, 0);
+				}
+			}
+			x += GROUPWIDTH;
+		}
+		x += drawtext(prompt->draw, &color[ColorFG], x, y, prompt->h, prompt->itemarray[i]->text, 0);
+		x += dc.pad;
 
-	/* if item has a description, draw it */
-	if (prompt->itemarray[n]->description != NULL)
-		drawtext(prompt->draw, &color[ColorCM], textwidth, y, prompt->h,
-		         prompt->itemarray[n]->description, 0);
-
-	/* commit drawing */
-	if (copy)
-		XCopyArea(dpy, prompt->pixmap, prompt->win, dc.gc, x, y, prompt->w - x, prompt->h, x, y);
+		/* if item has a description, draw it */
+		if (prompt->itemarray[i]->description != NULL) {
+			drawtext(prompt->draw, &color[ColorCM], x, y, prompt->h,
+		         	 prompt->itemarray[i]->description, 0);
+		}
+	}
 }
 
 /* draw the prompt */
@@ -653,7 +684,6 @@ drawprompt(struct Prompt *prompt)
 {
 	unsigned h;
 	int y;
-	size_t i;
 
 	/* draw input field text and set position of the cursor */
 	drawinput(prompt, 0);
@@ -665,8 +695,7 @@ drawprompt(struct Prompt *prompt)
 	XFillRectangle(dpy, prompt->pixmap, dc.gc, 0, y, prompt->w, h);
 
 	/* draw items */
-	for (i = 0; i < prompt->nitems; i++)
-		drawitem(prompt, i, 0);
+	drawitems(prompt);
 
 	/* commit drawing */
 	h = prompt->h * (prompt->maxitems + 1) + prompt->separator;
@@ -947,6 +976,7 @@ setpromptundo(struct Prompt *prompt)
 static void
 setpromptitems(struct Prompt *prompt)
 {
+	prompt->groups = NULL;
 	prompt->head = prompt->tail = NULL;
 	prompt->fhead = prompt->ftail = NULL;
 	prompt->firstmatch = NULL;
@@ -1326,9 +1356,9 @@ getfilelist(struct Prompt *prompt)
 				continue;
 			if (*prompt->text != '\0') {
 				snprintf(path, sizeof(path), "%s/%s", prompt->text, entry->d_name);
-				item = allocitem(path, NULL, NULL);
+				item = allocitem(path, NULL, NULL, NULL);
 			} else {
-				item = allocitem(entry->d_name, NULL, NULL);
+				item = allocitem(entry->d_name, NULL, NULL, NULL);
 			}
 			if (prompt->fhead == NULL)
 				prompt->fhead = item;
@@ -1592,10 +1622,17 @@ redo(struct Prompt *prompt)
 static void
 print(struct Prompt *prompt)
 {
-	if (prompt->selitem != NULL && prompt->selitem->output != NULL && strcmp(prompt->text, prompt->selitem->text) == 0) {
-		puts(prompt->selitem->output);
+	if (prompt->selitem != NULL) {
+		if (prompt->selitem->group != NULL) {
+			printf("%s\t", prompt->selitem->group->name);
+		}
+		if (prompt->selitem->output != NULL) {
+			printf("%s\n", prompt->selitem->output);
+		} else {
+			printf("%s\n", prompt->selitem->text);
+		}
 	} else {
-		puts(prompt->text);
+		printf("%s\n", prompt->text);
 	}
 }
 
@@ -1759,7 +1796,7 @@ insert:
 		return DrawInput;
 	}
 	if (ISEDITING(operation) || ISUNDO(operation)) {
-		if (operation != INSERT) {
+		if (fflag && operation != INSERT) {
 			cleanitem(prompt->fhead);
 			getfilelist(prompt);
 		}
@@ -2039,30 +2076,43 @@ readstdin(struct Prompt *prompt)
 {
 	struct Item *item;
 	char buf[INPUTSIZ];
-	char *text, *description, *output;
+	char *text, *description, *output, *s;
+	int setgroup;
 
+	setgroup = 1;
 	while (fgets(buf, sizeof buf, stdin) != NULL) {
 		/* discard empty lines */
-		if (*buf && *buf == '\n')
+		if (*buf && *buf == '\n') {
+			setgroup = 1;
 			continue;
+		}
+
+		buf[strcspn(buf, "\n")] = '\0';
+
+		if (gflag && setgroup) {
+			prompt->groups = allocgroup(prompt->groups, buf);
+			setgroup = 0;
+			continue;
+		}
 
 		/* get the item text */
 		description = NULL;
 		output = NULL;
-		if (dflag || oflag)
-			text = strtok(buf, "\t\n");
-		else
-			text = buf;
-		if (dflag)
-			description = strtok(NULL, "\t\n");
-		if (oflag)
-			output = strtok(NULL, "\n");
+		s = text = buf;
+		if (s && ((s = strchr(s, '\t')) != NULL)) {
+			*s = '\0';
+			description = ++s;
+		}
+		if (s && ((s = strchr(s, '\t')) != NULL)) {
+			*s = '\0';
+			output = ++s;
+		}
 
 		/* discard empty text entries */
 		if (!text || *text == '\0')
 			continue;
 
-		item = allocitem(text, description, output);
+		item = allocitem(text, description, output, prompt->groups);
 
 		if (prompt->head == NULL)
 			prompt->head = item;
@@ -2110,6 +2160,16 @@ cleanundo(struct Undo *undo)
 static void
 cleanprompt(struct Prompt *prompt)
 {
+	struct Group *group, *tmp;
+
+	group = prompt->groups;
+	while (group) {
+		tmp = group;
+		group = group->next;
+		free(tmp->name);
+		free(tmp);
+	}
+
 	cleanitem(prompt->head);
 	free(prompt->text);
 	free(prompt->itemarray);
@@ -2159,19 +2219,19 @@ main(int argc, char *argv[])
 	char *histfile;
 
 	histfile = NULL;
-	while ((ch = getopt(argc, argv, "dfh:op")) != -1) {
+	while ((ch = getopt(argc, argv, "fgh:ip")) != -1) {
 		switch (ch) {
-		case 'd':
-			dflag = 1;
-			break;
 		case 'f':
 			fflag = 1;
+			break;
+		case 'g':
+			gflag = 1;
 			break;
 		case 'h':
 			histfile = optarg;
 			break;
-		case 'o':
-			oflag = 1;
+		case 'i':
+			fstrncmp = strncasecmp;
 			break;
 		case 'p':
 			pflag = 1;

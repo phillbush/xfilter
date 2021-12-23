@@ -1,0 +1,222 @@
+.TH XRUNNER 1
+.SH NAME
+xfilter \- X11 interactive filter
+.SH SYNOPSIS
+.B xfilter
+.RB [ \-fg ]
+.RB [ \-h
+.IR histfile ]
+.RI [ files... ]
+.SH DESCRIPTION
+.B xfilter
+is an interactive filter for X,
+it displays a text input field where the user can type in a text
+or select one of the items read from stdin.
+When the user presses Return, the typed text or selected item is printed to the stdout.
+.PP
+The options are as follows:
+.TP
+.B \-f
+Enables filename selection.
+.TP
+.B \-g
+If this option is active,
+lines read from stdin must be grouped in line blocks delimited by blank lines.
+Each group must begin with a line whose only content is the name of the group.
+The remaining lines of each group are displayed for the user to select.
+When the user selects an item from a group, this item is printed to the stdout
+prefixed with the name of the group it came from.
+.TP
+\fB\-h\fP \fIfile\fP
+Specifies the file to be used for reading and storing the hystory of entered texts.
+.PP
+.B xfilter
+sets its window type (the
+.B _NET_WM_WINDOW_TYPE
+property) as
+.B _NET_WM_WINDOW_TYPE_PROMPT
+and expects that the window manager maps
+.B xfilter
+at the right monitor at the right place,
+draw its borders,
+and give it the input focus for the whole period of time while
+.B xfilter
+is mapped.
+.B _NET_WM_WINDOW_TYPE_PROMPT
+is an unnoficial extension to the EWMH specification.
+The only known window manager that supports this extension is
+.IR shod (1).
+.SH USAGE
+.B xfilter
+is controlled by the keyboard.
+Pressing Tab navigates through the filtered items.
+pressing Up or Down navigates through the history.
+.PP
+.B xfilter
+supports XIM-based input methods with on-the-spot pre-editing.
+When the input method is in progress, the pre-edited text is underlined.
+.PP
+.B xfilter
+can also be controlled via
+.B Ctrl + Key
+keybindings.
+.TP
+.B Ctrl+V
+Paste from primary X selection.
+.TP
+.B Ctrl+C
+Copy selected text into primary X selection.
+.TP
+.B Enter ", " Ctrl+M
+Prints the input text to stdout.
+It also writes the input text to the history file,
+if the input text is different from the last entry in the history file.
+.TP
+.B Shift+Tab ", " Ctrl+P
+Selects the previous item.
+.TP
+.B Tab ", " Ctrl+N
+Selects the next item.
+.TP
+.B PgUp
+TODO.
+.TP
+.B PgDown
+TODO.
+.TP
+.B Up
+Select the previous entered text in the history.
+.TP
+.B Down
+Select the next entered text in the history.
+.TP
+.B Home ", " Ctrl+A
+Move the cursor to the beginning of line.
+.TP
+.B End ", " Ctrl+E
+Move the cursor to the end of line.
+.TP
+.B Left ", " Ctrl+B
+Move the cursor one character to the left.
+.TP
+.B Right ", " Ctrl+F
+Move the cursor one character to the right.
+.TP
+.B Ctrl+Left
+Move the cursor one word to the left.
+.TP
+.B Ctrl+Right
+Move the cursor one word to the right.
+.TP
+.B Ctrl+U
+Delete from the cursor to the beginning of line.
+.TP
+.B Ctrl+K
+Delete from the cursor to the end of line.
+.TP
+.B Backspace ", " Ctrl+H
+Delete one character to the left.
+.TP
+.B Delete ", " Ctrl+D
+Delete one character to the right.
+.TP
+.B Ctrl+W
+Delete one word to the left.
+.TP
+.B Shift+Home
+Select text from cursor to beginning of line.
+.TP
+.B Shift+End
+Select text from cursor to end of line.
+.TP
+.B Shift+Left
+Select text from cursor to one character to the left.
+.TP
+.B Shift+Right
+Select text from cursor to one character to the right.
+.TP
+.B Ctrl+Shift+Left
+Select text from cursor to one word to the left.
+.TP
+.B Ctrl+Shift+Right
+Select text from cursor to one word to the right.
+.TP
+.B Ctrl+Z
+Undo the last editing operation.
+.TP
+.B Ctrl+Shift+Z
+Redo an editing operation.
+.TP
+.B Esc
+Exit xfilter without printing anything.
+.PP
+.B xfilter
+can also be controlled with the mouse.
+.IP \(bu 2
+Clicking on a item selects it.
+.IP \(bu 2
+Clicking on the input field with the left button moves the cursor.
+.IP \(bu 2
+Clicking on the input field with the middle button pastes from the primary selection.
+.IP \(bu 2
+Clicking on the input field with the left button and moving the mouse selects text.
+.IP \(bu 2
+Clicking on the input field with the left button twice selects a word.
+.IP \(bu 2
+Clicking on the input field with the left button three times selects the whole text.
+.SH ENVIRONMENT
+The following environment variables affect the execution of
+.BR xfilter .
+.TP
+.B DISPLAY
+The display to start xfilter on.
+.SH RESOURCES
+.B xfilter
+understands the following X resources.
+.TP
+.B xfilter.font
+The font to draw the text.
+Multiple fonts can be added as fallback fonts;
+they must be separated by a comma.
+.TP
+.B xfilter.background
+The background color of the input text field,
+and of the non-selected items in the items list.
+.TP
+.B xfilter.foreground
+The foreground color of the input text field,
+and of the non-selected items in the items list.
+.TP
+.B xfilter.description
+The foreground color of the description of non-selected items in the items list.
+.TP
+.B xfilter.hoverbackground
+The background color of the hovered items in the items list.
+.TP
+.B xfilter.hoverforeground
+The background color of the hovered items in the items list.
+.TP
+.B xfilter.hoverdescription
+The foreground color of the description of hovered items in the items list.
+.TP
+.B xfilter.selbackground
+The background color of the selected items in the items list.
+.TP
+.B xfilter.selforeground
+The background color of the selected items in the items list.
+.TP
+.B xfilter.seldescription
+The foreground color of the description of selected items in the items list.
+.TP
+.B xfilter.separator
+The color of the separator between the input field and the items list.
+.TP
+.B xfilter.separatorWidth
+The size in pixels of the item separator.
+.TP
+.B xfilter.items
+The number of items to be listed in the items list.
+.SH SEE ALSO
+.IR dmenu (1),
+.IR shod (1),
+.IR xmenu (1)
