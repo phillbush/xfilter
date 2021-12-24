@@ -1205,17 +1205,6 @@ delword(struct Prompt *prompt)
 		insert(prompt, NULL, nextrune(prompt->text, prompt->cursor, -1) - prompt->cursor);
 }
 
-/* insert selected item on prompt->text */
-static void
-insertselitem(struct Prompt *prompt)
-{
-	if (prompt->cursor && !isspace((unsigned char)prompt->text[prompt->cursor - 1]))
-		delword(prompt);
-	memmove(prompt->text + prompt->file, prompt->text + prompt->cursor, strlen(prompt->text + prompt->cursor) + 1);
-	prompt->cursor = prompt->file;
-	insert(prompt, prompt->selitem->text, strlen(prompt->selitem->text));
-}
-
 /* add entry to undo list */
 static void
 addundo(struct Prompt *prompt, int editing)
@@ -1678,8 +1667,6 @@ keypress(struct Prompt *prompt, XKeyEvent *ev)
 	case CTRLCANCEL:
 		return Esc;
 	case CTRLENTER:
-		if (prompt->matchlist)
-			insertselitem(prompt);
 		print(prompt);
 		return Enter;
 	case CTRLPREV:
@@ -1891,10 +1878,8 @@ buttonpress(struct Prompt *prompt, XButtonEvent *ev)
 			lasttime = ev->time;
 			return DrawInput;
 		} else if (ev->y > prompt->h + prompt->separator) {
-			if ((prompt->selitem = getitem(prompt, ev->y)) == NULL) {
+			if ((prompt->selitem = getitem(prompt, ev->y)) == NULL)
 				return Nop;
-			}
-			insertselitem(prompt);
 			print(prompt);
 			return Enter;
 		}
